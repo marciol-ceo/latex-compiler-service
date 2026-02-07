@@ -93,6 +93,15 @@ def compile_latex():
         print(f"📁 [RENDER] Work dir créé: {work_dir}")
 
         try:
+            # Copier le logo MAXA dans le dossier de travail
+            logo_source = os.path.join(os.path.dirname(__file__), 'icon_app.png')
+            if os.path.exists(logo_source):
+                logo_dest = os.path.join(work_dir, 'icon_app.png')
+                shutil.copy2(logo_source, logo_dest)
+                print(f"🖼️ [RENDER] Logo MAXA copié dans le dossier de travail")
+            else:
+                print(f"⚠️ [RENDER] Logo MAXA non trouvé: {logo_source}")
+
             # Sauvegarder le fichier .tex
             tex_file = os.path.join(work_dir, 'document.tex')
             with open(tex_file, 'w', encoding='utf-8') as f:
