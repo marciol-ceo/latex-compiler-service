@@ -14,6 +14,18 @@ CORS(app)  # Pour permettre les requêtes depuis Firebase Functions
 MAX_COMPILE_TIME = 30  # secondes
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
+@app.route('/', methods=['GET'])
+def index():
+    """Page d'accueil du service"""
+    return jsonify({
+        'service': 'MAXA LaTeX Compiler',
+        'status': 'running',
+        'endpoints': {
+            '/health': 'GET - Health check',
+            '/compile': 'POST - Compile LaTeX to PDF'
+        }
+    })
+
 @app.route('/health', methods=['GET'])
 def health_check():
     """Vérifier que le service est en ligne"""
@@ -46,9 +58,17 @@ def compile_latex():
     }
     """
     try:
+        print(f"📥 [RENDER] Requête reçue sur /compile")
+        print(f"🔍 [RENDER] Method: {request.method}")
+        print(f"🔍 [RENDER] Headers: {dict(request.headers)}")
+        print(f"🔍 [RENDER] Content-Type: {request.content_type}")
+
         # Validation de la requête
         data = request.get_json()
+        print(f"📦 [RENDER] Data reçue: {data is not None}")
+
         if not data or 'latex_content' not in data:
+            print(f"❌ [RENDER] Données invalides: data={data}")
             return jsonify({
                 'success': False,
                 'error': 'latex_content est requis'
@@ -57,8 +77,12 @@ def compile_latex():
         latex_content = data['latex_content']
         filename = data.get('filename', 'document.pdf')
 
+        print(f"📄 [RENDER] Filename: {filename}")
+        print(f"📏 [RENDER] LaTeX content size: {len(latex_content)} chars")
+
         # Validation de la taille
         if len(latex_content.encode('utf-8')) > MAX_FILE_SIZE:
+            print(f"❌ [RENDER] Fichier trop volumineux")
             return jsonify({
                 'success': False,
                 'error': f'Le fichier LaTeX dépasse {MAX_FILE_SIZE / 1024 / 1024} MB'
@@ -66,6 +90,7 @@ def compile_latex():
 
         # Créer un dossier temporaire unique
         work_dir = tempfile.mkdtemp(prefix='latex_compile_')
+        print(f"📁 [RENDER] Work dir créé: {work_dir}")
 
         try:
             # Sauvegarder le fichier .tex
@@ -74,9 +99,12 @@ def compile_latex():
                 f.write(latex_content)
 
             # Compiler avec pdflatex (2 passes pour les références croisées)
+            print(f"🔨 [RENDER] Début compilation pdflatex...")
             pdf_file = compile_latex_to_pdf(work_dir, tex_file)
 
             if pdf_file and os.path.exists(pdf_file):
+                pdf_size = os.path.getsize(pdf_file)
+                print(f"✅ [RENDER] PDF généré avec succès: {pdf_size} bytes")
                 # Renvoyer le PDF
                 return send_file(
                     pdf_file,
@@ -86,11 +114,13 @@ def compile_latex():
                 )
             else:
                 # Récupérer les logs d'erreur
+                print(f"❌ [RENDER] Compilation échouée, PDF non généré")
                 log_file = os.path.join(work_dir, 'document.log')
                 error_log = ''
                 if os.path.exists(log_file):
                     with open(log_file, 'r', encoding='utf-8', errors='ignore') as f:
                         error_log = f.read()[-2000:]  # Derniers 2000 caractères
+                    print(f"📋 [RENDER] Log LaTeX: {error_log[:500]}...")
 
                 return jsonify({
                     'success': False,
@@ -100,9 +130,13 @@ def compile_latex():
 
         finally:
             # Nettoyer le dossier temporaire
+            print(f"🧹 [RENDER] Nettoyage du dossier temporaire")
             shutil.rmtree(work_dir, ignore_errors=True)
 
     except Exception as e:
+        print(f"💥 [RENDER] Exception non gérée: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({
             'success': False,
             'error': f'Erreur serveur: {str(e)}'
